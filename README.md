@@ -376,3 +376,37 @@ go-mysql is still in development, your feedback is very welcome.
 
 
 Gmail: siddontang@gmail.com
+
+
+squids:
+
+针对mariadb特性：
+```
+添加新功能时，我们可能希望添加新的二进制日志事件。但是添加新事件会给 不理解新事件的
+旧从站复制带来问题。所以会导致我们在伪装为MySQL slave的时候，master同步annotate_rows这类event会被认为无法被slave解析，从而自动用大小相同的虚拟时间-空查询时间替换。
+//相关问题解决参考https://archive.ph/3szMZ#selection-533.0-533.1
+```
+在解析mariadb数据库的binlog时，把自己伪装为MySQL slave 时，需要告知主库当前slave的能力（处理相关二进制日志事件的能力）
+通过设置@mariadb_slave_capability 参数的大小来告知master
+可选值如下：
+```
+/* MySQL or old MariaDB slave with no announced capability. */
+#define MARIA_SLAVE_CAPABILITY_UNKNOWN 0
+/* MariaDB >= 5.3, which understands ANNOTATE_ROWS_EVENT. */
+#define MARIA_SLAVE_CAPABILITY_ANNOTATE 1
+/*
+  MariaDB >= 5.5. This version has the capability to tolerate events omitted
+  from the binlog stream without breaking replication (MySQL slaves fail
+  because they mis-compute the offsets into the master's binlog).
+*/
+#define MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES 2
+/* MariaDB > 5.5, which knows about binlog_checkpoint_log_event. */
+#define MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT 3
+/*
+  MariaDB server which understands MySQL 5.6 ignorable events. This server
+  can tolerate receiving any event with the LOG_EVENT_IGNORABLE_F flag set.
+*/
+#define MARIA_SLAVE_CAPABILITY_IGNORABLE 4
+```
+由于我们需要获取binlog中的原始sql，所以此处默认设置@mariadb_slave_capability=1
+修改了开源库中的默认值
